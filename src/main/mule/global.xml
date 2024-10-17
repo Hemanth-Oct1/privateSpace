@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties"
+	xmlns:tls="http://www.mulesoft.org/schema/mule/tls"
+	xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway"
+	xmlns:oauth2-provider="http://www.mulesoft.org/schema/mule/oauth2-provider" xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:vm="http://www.mulesoft.org/schema/mule/vm" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd 
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd 
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/oauth2-provider http://www.mulesoft.org/schema/mule/oauth2-provider/current/mule-oauth2-provider.xsd
+http://www.mulesoft.org/schema/mule/api-gateway http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd
+http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd">
+     <os:object-store name="authorizationCodeObjectStore" doc:name="Object store" doc:id="9abcf40d-9d5b-48dc-b0e5-e98a8cf7e13d" />
+     <os:object-store name="clientObjectStore" doc:name="Object store" doc:id="d323d098-58ab-4ced-a852-492a0e186fe9" />
+     <os:object-store name="tokenObjectStore" doc:name="Object store" doc:id="4c469a83-9a12-4b1f-85e8-b094abd3aa80" maxEntries="5" entryTtl="1" entryTtlUnit="MINUTES"/>
+	 <os:object-store name="Object_store__multiple_token" doc:name="Object store" doc:id="a8c075f1-703d-446d-afc2-b3e8dde4e17a" maxEntries="5" entryTtl="10" persistent="false" expirationInterval="10" expirationIntervalUnit="SECONDS"/>
+	<os:object-store name="Object_store_client" doc:name="Object store" doc:id="5c1cb54e-4343-4940-9a03-e918fc32691b" />
+	<os:object-store name="Object_store_token" doc:name="Object store" doc:id="476d00d4-143f-40df-9e7f-9d233e1b667a" maxEntries="5" entryTtl="1" entryTtlUnit="HOURS" expirationInterval="30"/>
+	<configuration-properties doc:name="Configuration properties" doc:id="4b226293-21c6-4b67-82ad-d50c65021811" file="configurations\configuration-${mule.env}.yaml" />
+	<os:object-store name="Object_store_auth" doc:name="Object store" doc:id="724b26bc-7b37-468e-98c1-e1205b9a8b48" />
+	
+	<vm:config name="VM_Config" doc:name="VM Config" doc:id="c2514e13-abd9-4b9d-991e-809f8bdce0e6">
+		<vm:queues >
+			<vm:queue queueName="token" />
+		</vm:queues>
+	</vm:config>
+	<os:object-store name="Object_store" doc:name="Object store" doc:id="6032e64f-e183-4916-8691-fe420b0b7b81" persistent="false"/>
+	
+	 <oauth2-provider:config name="Oauth2_Provider_Config" doc:name="Oauth2_Provider_Config" doc:id="767cd931-bb53-41f1-b3d2-e80a8f123d10" listenerConfig="api-sys-oauth-http-Listener-Config" providerName="Oauth2_Provider_Config" clientStore="Object_store_client" supportedGrantTypes="CLIENT_CREDENTIALS">
+            <oauth2-provider:client-validation-rate-limiter >
+                  <oauth2-provider:period-rate-limiter duration="10" durationTimeUnit="MINUTES" maximumFailureCount="3"/>
+            </oauth2-provider:client-validation-rate-limiter>
+        	<oauth2-provider:token-config tokenStore="Object_store_token" tokenTtl="1" tokenTtlTimeUnit="HOURS" path="/oauth/token/new">
+
+            </oauth2-provider:token-config>
+            <oauth2-provider:authorization-config loginPage="http://localhost:8081" authorizationCodeStore="Object_store_auth" path="/oauth/authorize/new"/>
+            <oauth2-provider:clients >
+                  <oauth2-provider:client clientId="client1" clientName="First Client" description="Demo client for oauth" secret="secret1" type="CONFIDENTIAL">
+                        <oauth2-provider:client-authorized-grant-types >
+                              <oauth2-provider:client-authorized-grant-type value="CLIENT_CREDENTIALS" />
+                        </oauth2-provider:client-authorized-grant-types>
+                  </oauth2-provider:client>
+            </oauth2-provider:clients>
+      </oauth2-provider:config>
+	<tls:context name="TLS_Context" doc:name="TLS Context" doc:id="6078f408-32e6-468d-818c-23613e184bfb" >
+		<tls:key-store type="jks" path="server-keystore.jks" keyPassword="${secure::keystore.keyPassword}" password="${secure::keystore.password}" />
+	</tls:context>
+	<secure-properties:config name="API_Secure_Properties_Config" doc:name="Secure Properties Config" doc:id="851fe87d-8026-44e5-b128-671cc7facd9c" file="configurations/configuration-${mule.env}.yaml" key="${mule.securePropertiesKey}" >
+		<secure-properties:encrypt algorithm="Blowfish" />
+	</secure-properties:config>
+	<tls:context name="TrustStore" doc:name="TLS Context" doc:id="749e23fe-55c6-4367-9767-f9178c5c51b8" >
+		<tls:trust-store path="server-keystore.jks" password="${secure::keystore.password}" type="jks" />
+	</tls:context>
+	<global-property doc:name="Global Property" doc:id="6d759f6a-fce9-4f02-9517-dfedbc5971c7" name="mule.env" value="dev" />
+	<global-property doc:name="Global Property" doc:id="f51870e6-c518-43c5-a866-af921389df9c" name="mule.securePropertiesKey" value="blowfish" />
+		
+	
+
+</mule>
