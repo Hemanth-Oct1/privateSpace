@@ -3,13 +3,13 @@ name: Deploy MuleSoft Application
 on:
   push:
     branches:
-      - cloudhub
+      - main
   pull_request:
     branches:
-      - cloudhub
+      - main
 
 
 jobs:
   call-workflow:
-    uses: Hemanth-sep29/privateSpace.git/.github/workflows/reusableWorkflow.yml@cloudhub
+    uses: Hemanth-sep29/privateSpace.git/.github/workflows/reusableWorkflow.yml@main
     secrets: inherit
