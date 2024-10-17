@@ -1,0 +1,18 @@
+# *** API Listener Configurations ***
+
+https:
+  port: "8082"
+  host: "0.0.0.0"
+  timeout: "1200000"
+  
+api:
+  listenerpath: "/${secure::api.version}/*"
+  consolepath: "/${secure::api.version}/console/*"
+  version: "v1.0"
+  autodiscoveryId: "20009810"
+
+keystore:
+    path: "server-keystore.jks"
+    keyPassword: "![zEXhqCRgsFQ=]"
+    password: "![zEXhqCRgsFQ=]"  
+              

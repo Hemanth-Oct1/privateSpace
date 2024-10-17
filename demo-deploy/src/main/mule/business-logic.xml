@@ -1,0 +1,311 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:oauth2-provider="http://www.mulesoft.org/schema/mule/oauth2-provider" xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns:vm="http://www.mulesoft.org/schema/mule/vm" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd  http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd http://www.mulesoft.org/schema/mule/oauth2-provider http://www.mulesoft.org/schema/mule/oauth2-provider/current/mule-oauth2-provider.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+    <http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="59d8da5c-600e-4b6a-b5f5-332990c68100" >
+		<http:request-connection host="localhost" port="8083">
+			<reconnection >
+				<reconnect />
+			</reconnection>
+		</http:request-connection>
+	</http:request-config>
+	<os:object-store name="Object_store_Customer" doc:name="Object store" doc:id="6e6f3628-9c9b-41fb-8006-a5b8aa38f115" />
+	<os:object-store name="Object_store_Consumer" doc:name="Object store" doc:id="9e6083fd-ff0c-456e-96c1-1f7ab5abd870" entryTtl="2" entryTtlUnit="HOURS" expirationIntervalUnit="HOURS"/>
+
+	<flow name="deleteClient">
+        <set-variable value="#[attributes.uriParams.'clientid']" doc:name="Set Variable" doc:id="35fa6015-d928-456b-a3ae-57931d84576a" variableName="clientId"/>
+		<logger level="INFO" doc:name="Logger" doc:id="f67c6c89-fe24-463d-a441-c773d6f373c2" message="Removing Client:: #[vars.clientId]"/>
+		<oauth2-provider:delete-client doc:name="Delete client" doc:id="7dc34843-3137-4019-9574-2a9eb6286059" clientId="#[attributes.uriParams.'clientid']" config-ref="Oauth2_Provider_Config" />
+		<os:retrieve doc:name="Retrieve" doc:id="8bed792e-879d-49e6-b747-2e1b4d1ef260" key="#[vars.clientId]" objectStore="Object_store">
+			<os:default-value ><![CDATA[#[[]]]]></os:default-value>
+		</os:retrieve>
+		<logger level="INFO" doc:name="Logger" doc:id="8b98937e-89b3-4158-a3b7-5da35ce1171f" message="#['Payload size == ' ++ sizeOf(payload)]"/>
+		<choice doc:name="Choice" doc:id="72905175-b382-4eea-8057-7548d8d77625" >
+			<when expression="#[sizeOf(payload) != 0]">
+				<foreach doc:name="For Each" doc:id="1af3b2e7-827b-4fbc-b4c0-5655e00f8490">
+			<logger level="INFO" doc:name="Logger" doc:id="6ebd1a31-b8c9-40fa-aaef-05b846943c3a" message="#[payload]"/>
+					<oauth2-provider:revoke-token doc:name="Revoke token" doc:id="8939999e-f087-415e-8bba-145e6d3eb240" config-ref="Oauth2_Provider_Config" token="#[payload]" />
+		</foreach>
+			</when>
+		</choice>
+		<try doc:name="Try" doc:id="ef8b7639-a05a-4b2b-af78-4de2197f2010" >
+			<os:remove doc:name="Remove" doc:id="07500e75-848c-45e6-865c-6ba5f3f4eeb2" key="#[vars.clientId]" objectStore="Object_store" />
+			<error-handler >
+				<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="74b3cf22-4ac9-4e21-806d-fb4b91bda064" />
+			</error-handler>
+		</try>
+		<try doc:name="Try" doc:id="a0288d08-e201-4893-91c1-c6f39830a0ea" >
+			<os:remove doc:name="Remove Customer" doc:id="25e808fe-9960-4a7a-82c7-593bffdc018a" key="#[vars.clientId]" objectStore="Object_store_Customer" />
+			<error-handler >
+				<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="d5cd206e-4b0e-4bce-ad48-b0591aac4dd1" />
+			</error-handler>
+		</try>
+		<ee:transform doc:name="Transform Message" doc:id="6e3076c8-1823-44fc-80e5-c6f3ab1d648d">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+'Client ## ' ++ vars.clientId ++' ## removed successfully']]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Logger" doc:id="95026cc3-5492-4162-a057-099d1deed969" message="Client removed" />
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="dcd2b9dc-427f-4d16-906d-86a02bfdc8e4" >
+				<ee:transform doc:name="Transform Message" doc:id="e7466986-5508-44cc-b075-7c4f2c6911a7">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	errormessage: error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+    </flow>
+    <flow name="validateToken">
+        <set-variable value="#[(attributes.headers['authorization'] splitBy ' ')[1]]" doc:name="Set Variable" doc:id="6c2bee29-88ce-441f-a35e-2295d3f0b229" variableName="auth"/>
+		<logger level="INFO" doc:name="Logger" doc:id="3009cf57-e849-49f9-82a8-00730546cb9b" message="Validating Token: #[vars.auth]" />
+		<oauth2-provider:validate-token doc:name="Validate token" doc:id="1d53be53-97c7-410b-bde1-f43e5fd54224" config-ref="Oauth2_Provider_Config" accessToken="#[vars.auth]"/>
+        <os:retrieve doc:name="Retrieve" doc:id="277a9f10-0f7d-48f6-a246-e6f777663de8" key="#[vars.auth]" objectStore="Object_store_Consumer" target="Consumer">
+			<os:default-value ><![CDATA[#[{
+	ConsumerId : "No Customer exists"
+}]]]></os:default-value>
+		</os:retrieve>
+		<ee:transform doc:name="Transform Message" doc:id="60146198-f2b3-4693-88f6-14d6d67ededc">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "expires_in": payload.expires_in,
+    "scope": payload.scope default "",
+    "client_id": payload.client_id,
+    "ConsumerId" : vars.Consumer.'ConsumerId'
+}
+]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Logger" doc:id="c579f4d6-2c82-46c8-a5ec-db710e6aaf42" message="#[payload]" />
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="false" doc:name="On Error Continue" doc:id="f71b9001-2d98-4747-abaa-8ae4b726a598" >
+				<ee:transform doc:name="Transform Message" doc:id="d150b47a-b430-43a9-813e-7bcc4cc811a5">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	errormessage: error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="WARN" doc:name="Logger" doc:id="97820f78-47f1-4e78-bf1d-a6a4f394d5a6" message="#[payload.errormessage]" />
+			</on-error-continue>
+		</error-handler>
+    </flow>
+    <flow name="getToken">
+		<ee:transform doc:name="Transform Message" doc:id="aa433d28-df0c-42fe-8a6a-f7e07f8883fd" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+import * from dw::core::Binaries
+import * from dw::core::Strings
+var authheader = fromBase64(substringAfter(attributes.headers.authorization, " ") as String)
+
+output application/json
+---
+{
+
+	client_id: substringBefore(authheader, ":"),
+	client_secret: substringAfter(authheader, ":"),
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<set-variable value="#[payload.client_id]" doc:name="clientId" doc:id="a6def273-b3b2-456c-b612-4f83c976b928" variableName="clientId" />
+		<logger level="INFO" doc:name="Logger" doc:id="402fded0-7984-43ab-a046-40d0ce185219" message="Getting token for Client #[vars.clientId]"/>
+		<set-variable value="#[payload.client_secret]" doc:name="clientsecret" doc:id="9f3e1ea1-1605-40b2-bc5a-250a6065f589" variableName="clientsecret"/>
+		<set-variable value="CLIENT_CREDENTIALS" doc:name="granttype" doc:id="efa72d5b-1044-4d05-a65d-9536ea0651ec" variableName="granttype"/>
+		<os:retrieve doc:name="Retrieve" doc:id="d24a7308-2192-4d0a-98a7-6809b4bf711f" key="#[vars.clientId]" objectStore="Object_store" target="objArr">
+            <os:default-value><![CDATA[#[[]]]]></os:default-value>
+        </os:retrieve>
+		<http:request method="POST" doc:name="Request" doc:id="4675371d-ae96-4ecb-a620-69f70a32b2bd" config-ref="HTTP_Request_configuration" path="/oauth/token/new">
+            <http:headers><![CDATA[#[output application/java
+---
+{
+	"client_secret" : vars.clientsecret,
+	"grant_type" : vars.granttype,
+	"client_id" : vars.clientId
+}]]]></http:headers>
+        </http:request>
+        <set-variable value="#[payload]" doc:name="Set Variable" doc:id="ea496b06-cb5d-4b48-8b7b-5243bcd7004c" variableName="latesttoken" mimeType="application/json" />
+        <logger level="INFO" doc:name="Logger" doc:id="f17017c2-0eea-4dd7-8724-cb6da3e2cda2" message="Condition value == #[sizeOf(vars.objArr)]"/>
+		<choice doc:name="Choice" doc:id="9e1544c6-38ac-4084-9301-88dc61196aa1">
+            <when expression="#[sizeOf(vars.objArr) &lt; 5]">
+				<logger level="INFO" doc:name="Logger" doc:id="50056383-5a4b-4e91-8a13-68e25e7f7689" message="Less than 5 tokens"/>
+				<ee:transform doc:name="Transform Message" doc:id="2cb6de70-740b-4ce3-a296-66ed1c13c961">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+       "valid_tokens": vars.objArr + payload.access_token
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="objArr"><![CDATA[%dw 2.0
+output application/java
+---
+vars.objArr + payload.access_token]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="dd6c94ea-7608-4fe0-9264-f32afe8f7c5f" message="Lesser than 5 tokens. ObjArr value == #[vars.objArr]" />
+            </when>
+            <otherwise>
+                <logger level="INFO" doc:name="Logger" doc:id="2dc6cf88-1783-4b38-ba95-5f3aa35606bf" message="More than 5 tokens"/>
+				<ee:transform doc:name="Transform Message" doc:id="46ca56f8-3053-4407-8a9c-95f9f762e8d8">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+import * from dw::core::Arrays
+var size = sizeOf(vars.objArr)
+output application/json
+---
+{
+       "valid_tokens": slice(vars.objArr, 1, size) + payload.access_token,
+       "removed_token": vars.objArr[0]
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="objArr"><![CDATA[%dw 2.0
+import * from dw::core::Arrays
+var size = sizeOf(vars.objArr)
+output application/java
+---
+slice(vars.objArr, 1, size) + payload.access_token]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="32861c23-e98c-43c3-a6a0-18c96aa94a24" message="Token revoking.== #[payload.removed_token]" />
+				<try doc:name="Try" doc:id="a4be6ccb-12e5-4bb4-b31a-46aa219437f2" >
+					<os:remove doc:name="Remove" doc:id="81f46367-224c-44f6-afef-558d5a51597b" key="#[payload.removed_token]" objectStore="Object_store_Consumer"/>
+					<oauth2-provider:revoke-token doc:name="Revoke token" doc:id="04e4fd1e-834b-4da2-93a5-e89a2f2c6554" token="#[payload.removed_token]" config-ref="Oauth2_Provider_Config" />
+					<error-handler >
+						<on-error-continue enableNotifications="true" logException="false" doc:name="On Error Continue" doc:id="664e4d1c-d97e-45c8-bbca-330d29808fe5" >
+							<ee:transform doc:name="Transform Message" doc:id="e9b66702-d9e0-4ddb-a5b0-cb66fd5fa9ac" >
+								<ee:message >
+								</ee:message>
+								<ee:variables >
+									<ee:set-variable variableName="errorDesc" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	WarnMessage: error.description
+}]]></ee:set-variable>
+								</ee:variables>
+							</ee:transform>
+							<logger level="INFO" doc:name="Logger" doc:id="21733c51-8237-47d2-9d5e-e222ab4e6946" message="In Revoke token:  #[vars.errorDesc]"/>
+						</on-error-continue>
+					</error-handler>
+				</try>
+            </otherwise>
+        </choice>
+        <os:store doc:name="Store" doc:id="13a3611f-c16f-41be-b091-50b7a3818613" key="#[vars.clientId]" objectStore="Object_store">
+            <os:value><![CDATA[#[vars.objArr]]]></os:value>
+        </os:store>
+        <os:retrieve doc:name="Retrieve" doc:id="de7f8d11-5760-481f-b9b1-b4241bc5d2d8" key="#[vars.clientId]" objectStore="Object_store_Customer" target="customerData">
+			<os:default-value><![CDATA[#[null]]]></os:default-value>
+		</os:retrieve>
+		<foreach doc:name="For Each" doc:id="1d3494dc-41e1-4078-846a-747dfa1e6cf8" collection="#[vars.objArr]">
+			<os:store doc:name="Store" doc:id="13658eae-3cc2-4236-83a0-4a9c1191864d" key="#[payload]" objectStore="Object_store_Consumer">
+				<os:value ><![CDATA[#[vars.customerData]]]></os:value>
+			</os:store>
+		</foreach>
+		<ee:transform doc:name="Transform Message" doc:id="15b3d431-1fda-4b41-86f0-6927da1a3803" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"access_token" : vars.latesttoken.'access_token',
+	"expires_in" : vars.latesttoken.'expires_in',
+	"token_type" : vars.latesttoken.'token_type'
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="e2c8d527-9b25-4eb4-b71a-2297fcf7982c" message="#[payload]" />
+        <error-handler>
+            <on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="cd036a92-d803-4cfb-ac8a-fcd4f58e094b">
+                <os:clear doc:name="Clear" doc:id="809a04cd-9d83-4526-9b33-fe5a1790a065" objectStore="Object_store" />
+                <ee:transform doc:name="Transform Message" doc:id="ca9120b1-49a2-443d-886b-5b4b6c5b5fe7">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+vars.latesttoken]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+				<choice doc:name="Choice" doc:id="e85e46a7-c0b4-4078-873d-8b759b90c2b0" >
+					<when expression="#[payload == null]">
+						<raise-error doc:name="Raise error" doc:id="df80ab6a-8b04-4e25-9e3b-b09c108f723b" type="OAUTH:INVALID_CLIENT" description="Client is not registered"/>
+					</when>
+				</choice>
+            </on-error-continue>
+        </error-handler>
+    </flow>
+    <flow name="createClient">
+        <logger level="INFO" doc:name="Logger" doc:id="d4be41ab-1a00-4337-8191-3ec93693f256" message="Adding Client:: #[payload.clientID]"/>
+		<oauth2-provider:create-client doc:name="Create client" doc:id="5ae458f3-0eaf-4b53-b985-afbf848037a7" clientId="#[payload.clientID]" secret="#[payload.clientSecret]" clientName="dynamic client" description="This is a sample client to be added dynamically by flow." authorizedGrantTypes="#[['CLIENT_CREDENTIALS']]" failIfPresent="true" type="CONFIDENTIAL" config-ref="Oauth2_Provider_Config" />
+        <os:store doc:name="Store" doc:id="231fa99a-558d-47b0-9df6-9973de569774" key="#[payload.clientID]" objectStore="Object_store_Customer"/>
+		<ee:transform doc:name="Transform Message" doc:id="2e52631b-be32-41d8-9103-db425f5ff414">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+'Client ## ' ++ payload.clientID ++  ' ## added successfully']]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Logger" doc:id="802994a1-4579-4062-be96-a175b370326d" message="Client created." />
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="false" doc:name="On Error Continue" doc:id="1d25ec8e-f90e-4520-b024-f955d70e40e7" >
+				<ee:transform doc:name="Transform Message" doc:id="9018252c-e495-497e-8163-b842b09eaa0c">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	errormessage: error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="WARN" doc:name="Logger" doc:id="0bfe820d-c9b9-44ae-a3c4-1c589959048d" message="#[payload.errormessage]" />
+			</on-error-continue>
+		</error-handler>
+    </flow>
+	<flow name="reinstate-clients-scheduler" doc:id="6c44ca3a-f019-4e64-b9b6-ae196f977503">
+		<scheduler doc:name="Scheduler" doc:id="89ac8b3a-49a9-4c27-a138-74abce1681b0" >
+			<scheduling-strategy >
+				<fixed-frequency frequency="15" timeUnit="DAYS"/>
+			</scheduling-strategy>
+		</scheduler>
+		<flow-ref doc:name="reinstateclients" doc:id="be755fa9-e473-4f59-8f7c-7fe6153fe507" name="reinstateClients" />
+	</flow>
+	<flow name="reinstateClients" doc:id="317e83f0-c950-4351-bfae-39081b1b4db9" >
+<!-- 		<http:listener doc:name="Listener" doc:id="4662d578-b3ef-473f-a1b3-cf7f71ed8792" config-ref="api-sys-oauth-http-Listener-Config" path="/reinstate"/> -->
+		<logger level="INFO" doc:name="Logger" doc:id="36e99009-43e8-45dc-b25e-530202ec6816" message="Client Refresh Started"/>
+		<os:retrieve-all doc:name="Retrieve all clients" doc:id="ac22ac51-4ef8-48b3-825a-5117f33a71fd" objectStore="Object_store_Customer"/>
+		<foreach doc:name="For Each" doc:id="389b056f-7400-4143-b6e7-9d133ea10ea6" collection="#[dw::core::Objects::entrySet(payload)]">
+			<ee:transform doc:name="Transform Message" doc:id="ce4700b0-232d-4b4d-bd8c-c64d2cece876">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+read(payload.value)
+]]></ee:set-payload>
+				</ee:message>
+				<ee:variables >
+				</ee:variables>
+			</ee:transform>
+			<oauth2-provider:create-client doc:name="Create client" doc:id="cc6d421e-0841-4468-9538-eeff5c7ed6af" config-ref="Oauth2_Provider_Config" clientId="#[payload.clientID]" type="CONFIDENTIAL" secret="#[payload.clientSecret]" clientName="dynamic client" authorizedGrantTypes="#[['CLIENT_CREDENTIALS']]" description="This is a sample client to be added dynamically by flow."/>
+			<os:store doc:name="ReInstate Customers" doc:id="e40c05b1-0026-4557-8fca-85a3591ea001" key="#[payload.clientID]" objectStore="Object_store_Customer" >
+			</os:store>
+		</foreach>
+		<logger level="INFO" doc:name="Logger" doc:id="04c58001-d769-4bbf-81e3-528212178c8b" message="Client reinstatement completed. Clients Refreshed :: #[payload]"/>
+	</flow>
+</mule>
