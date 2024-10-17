@@ -1,7 +1,9 @@
 name: Deploying to privatespace
 
 on:
-  workflow_call:
+  push:
+      branches:
+        - main
 
 jobs:
   build:
